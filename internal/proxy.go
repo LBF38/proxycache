@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"io"
 	"log"
 	"net/http"
 	"net/url"
@@ -19,10 +20,14 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	r.Host = origin.Host
 	r.URL.Host = origin.Host
 	r.URL.Scheme = origin.Scheme
-	log.Printf("request %v", r.RequestURI)
 	r.RequestURI = ""
-	log.Println(r)
 	resp, err := http.DefaultClient.Do(r)
-	log.Println(resp)
+
+	for key, values := range resp.Header {
+		for _, value := range values {
+			w.Header().Set(key, value)
+		}
+	}
 	w.WriteHeader(resp.StatusCode)
+	io.Copy(w, resp.Body)
 }
