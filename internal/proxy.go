@@ -19,6 +19,11 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		log.Fatalf("error parsing url, got %v", err)
 	}
 
+	r.Header.Set("X-Forwarded-Host", r.Host)
+	r.Header.Set("X-Forwarded-Port", r.URL.Port())
+	r.Header.Set("X-Forwarded-Proto", r.Proto)
+	r.Header.Set("X-Forwarded-Server", "ProxyCache") // WIP
+
 	r.Host = origin.Host
 	r.URL.Host = origin.Host
 	r.URL.Scheme = origin.Scheme
