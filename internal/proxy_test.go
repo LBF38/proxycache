@@ -35,10 +35,10 @@ func TestProxy(t *testing.T) {
 
 	t.Run("forwarded headers", func(t *testing.T) {
 		server := createTestServer(func(w http.ResponseWriter, r *http.Request) {
-			assert.Equal(t, "hostname", r.Header.Get("X-Forwarded-Host"))
-			assert.Equal(t, "HTTP/1.1", r.Header.Get("X-Forwarded-Proto"))
-			assert.Equal(t, "ProxyCache", r.Header.Get("X-Forwarded-Server"))
-			w.Header().Set("X-Forwarded-Port", r.Header.Get("X-Forwarded-Port"))
+			assert.Equal(t, "hostname", r.Header.Get(HeaderForwardedHost))
+			assert.Equal(t, "HTTP/1.1", r.Header.Get(HeaderForwardedProto))
+			assert.Equal(t, "ProxyCache", r.Header.Get(HeaderForwardedServer))
+			w.Header().Set(HeaderForwardedPort, r.Header.Get(HeaderForwardedPort))
 		})
 		defer server.Close()
 		port, err := url.Parse(server.URL)
@@ -51,7 +51,7 @@ func TestProxy(t *testing.T) {
 
 		req.Host = "hostname"
 		proxy.ServeHTTP(response, req)
-		assert.Equal(t, port.Port(), response.Header().Get("X-Forwarded-Port"))
+		assert.Equal(t, port.Port(), response.Header().Get(HeaderForwardedPort))
 	})
 
 	t.Run("Remote addr in headers", func(t *testing.T) {

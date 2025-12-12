@@ -13,16 +13,23 @@ type Proxy struct {
 	OriginServer string
 }
 
+const (
+	HeaderForwardedHost   = "X-Forwarded-Host"
+	HeaderForwardedPort   = "X-Forwarded-Port"
+	HeaderForwardedProto  = "X-Forwarded-Proto"
+	HeaderForwardedServer = "X-Forwarded-Server"
+)
+
 func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	origin, err := url.Parse(p.OriginServer)
 	if err != nil {
 		log.Fatalf("error parsing url, got %v", err)
 	}
 
-	r.Header.Set("X-Forwarded-Host", r.Host)
-	r.Header.Set("X-Forwarded-Port", r.URL.Port())
-	r.Header.Set("X-Forwarded-Proto", r.Proto)
-	r.Header.Set("X-Forwarded-Server", "ProxyCache") // WIP
+	r.Header.Set(HeaderForwardedHost, r.Host)
+	r.Header.Set(HeaderForwardedPort, r.URL.Port())
+	r.Header.Set(HeaderForwardedProto, r.Proto)
+	r.Header.Set(HeaderForwardedServer, "ProxyCache") // WIP
 
 	r.Host = origin.Host
 	r.URL.Host = origin.Host
