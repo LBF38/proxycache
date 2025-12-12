@@ -10,9 +10,10 @@ import (
 func main() {
 	log.Println("WIP")
 
-	origin := "http://127.0.0.1:8080"
+	origin := "http://127.0.0.1:8000"
 	proxy := &internal.Proxy{OriginServer: origin}
 
+	log.Println("Listening on port 5000")
 	if err := http.ListenAndServe(":5000", proxy); err != nil {
 		log.Fatalf("error starting server, %v", err)
 	}
