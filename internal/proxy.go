@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"time"
 )
 
 type Proxy struct {
@@ -44,6 +45,20 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set(key, value)
 		}
 	}
+
+	done := make(chan bool)
+	go func() {
+		for {
+			select {
+			case <-time.Tick(1 * time.Millisecond):
+				w.(http.Flusher).Flush()
+			case <-done:
+				return
+			}
+		}
+	}()
+
 	w.WriteHeader(resp.StatusCode)
 	io.Copy(w, resp.Body)
+	close(done)
 }
