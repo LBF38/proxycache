@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"sync"
 	"time"
 )
 
@@ -22,9 +23,22 @@ func main() {
 		flusher.Flush()
 	})
 
-	log.Println("Listening on port 8000")
-	if err := http.ListenAndServe(":8000", server); err != nil {
-		log.Fatalf("error with HTTP server: %v", err)
-	}
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		log.Println("Listening on port 8000")
+		if err := http.ListenAndServe(":8000", server); err != nil {
+			log.Fatalf("error with HTTP server: %v", err)
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		log.Println("Listening on port 8001")
+		if err := http.ListenAndServe(":8001", server); err != nil {
+			log.Fatalf("error second server: %v", err)
+		}
+	}()
 
+	wg.Wait()
 }
