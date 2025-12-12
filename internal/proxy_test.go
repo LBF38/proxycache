@@ -9,17 +9,16 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestProxy(t *testing.T) {
 	t.Run("check status code, body & headers", func(t *testing.T) {
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := createTestServer(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("content-type", "text/plain")
 			w.Header().Set("X-testing-header", "some value")
 			w.WriteHeader(http.StatusOK)
 			fmt.Fprintf(w, "some test")
-		}))
+		})
 		defer server.Close()
 		proxy := &Proxy{server.URL}
 		req := httptest.NewRequest(http.MethodGet, server.URL, nil)
@@ -27,19 +26,20 @@ func TestProxy(t *testing.T) {
 
 		proxy.ServeHTTP(response, req)
 
-		require.Equal(t, http.StatusOK, response.Code)
-		require.Equal(t, "text/plain", response.Header().Get("content-type"))
-		require.Equal(t, "some value", response.Header().Get("X-testing-header"))
-		require.Equal(t, "some test", response.Body.String())
+		assert.Equal(t, http.StatusOK, response.Code)
+		assert.Equal(t, "text/plain", response.Header().Get("content-type"))
+		assert.Equal(t, "some value", response.Header().Get("X-testing-header"))
+		assert.Equal(t, "some test", response.Body.String())
 	})
 
-	t.Run("X-Forwarded-For", func(t *testing.T) {
-		var header string
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			header = r.Header.Get("X-Forwarded-For")
+	t.Run("Remote addr in headers", func(t *testing.T) {
+		var headers []string
+		server := createTestServer(func(w http.ResponseWriter, r *http.Request) {
+			headers = append(headers, r.Header.Get("X-Forwarded-For"))
+			headers = append(headers, r.Header.Get("X-Real-Ip"))
 			w.WriteHeader(http.StatusOK)
 			fmt.Fprintf(w, "body content")
-		}))
+		})
 		defer server.Close()
 		proxy := &Proxy{server.URL}
 		req := httptest.NewRequest(http.MethodGet, server.URL, nil)
@@ -48,12 +48,14 @@ func TestProxy(t *testing.T) {
 
 		proxy.ServeHTTP(response, req)
 
-		require.Equal(t, "10.0.0.1", header)
+		assert.Equal(t, 2, len(headers))
+		assert.Equal(t, "10.0.0.1", headers[0])
+		assert.Equal(t, "10.0.0.1", headers[1])
 	})
 
 	t.Run("stream support", func(t *testing.T) {
 		// t.Skip("some workarounds")
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := createTestServer(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("content-type", "text/event-stream")
 			w.Header().Set("Connection", "keep-alive")
 			flusher, ok := w.(http.Flusher)
@@ -66,7 +68,7 @@ func TestProxy(t *testing.T) {
 			time.Sleep(time.Millisecond) // Not really great for test...
 			fmt.Fprintf(w, "more content\n")
 			flusher.Flush()
-		}))
+		})
 		defer server.Close()
 		proxy := &Proxy{server.URL}
 		req := httptest.NewRequest(http.MethodGet, server.URL, nil)
@@ -79,9 +81,9 @@ func TestProxy(t *testing.T) {
 	})
 
 	t.Run("bad remote addr", func(t *testing.T) {
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := createTestServer(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
-		}))
+		})
 		defer server.Close()
 		proxy := &Proxy{server.URL}
 		req := httptest.NewRequest(http.MethodGet, server.URL, nil)
@@ -92,4 +94,8 @@ func TestProxy(t *testing.T) {
 
 		assert.Equal(t, http.StatusInternalServerError, resp.Result().StatusCode)
 	})
+}
+
+func createTestServer(f http.HandlerFunc) *httptest.Server {
+	return httptest.NewServer(f)
 }
