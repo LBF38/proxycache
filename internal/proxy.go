@@ -46,6 +46,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// for streaming connections/data
 	done := make(chan bool)
 	go func() {
 		for {

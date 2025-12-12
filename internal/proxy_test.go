@@ -77,4 +77,19 @@ func TestProxy(t *testing.T) {
 		assert.True(t, response.Flushed)
 		assert.Equal(t, []string{"some content", "more content"}, strings.Split(strings.Trim(response.Body.String(), "\n"), "\n"))
 	})
+
+	t.Run("bad remote addr", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer server.Close()
+		proxy := &Proxy{server.URL}
+		req := httptest.NewRequest(http.MethodGet, server.URL, nil)
+		resp := httptest.NewRecorder()
+
+		req.RemoteAddr = "1.2.3.4"
+		proxy.ServeHTTP(resp, req)
+
+		assert.Equal(t, http.StatusInternalServerError, resp.Result().StatusCode)
+	})
 }
