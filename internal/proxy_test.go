@@ -160,6 +160,22 @@ func TestProxy(t *testing.T) {
 
 		proxy.ServeHTTP(response, req)
 	})
+
+	t.Run("HTTP/2", func(t *testing.T) {
+		t.Skip("TODO")
+	})
+	t.Run("HTTP/3 ?", func(t *testing.T) {
+		t.Skip("TODO")
+	})
+	t.Run("websockets ?", func(t *testing.T) {
+		t.Skip("TODO")
+	})
+	t.Run("Basic Authentication", func(t *testing.T) {
+		t.Skip("TODO")
+	})
+	t.Run("OAuth Authentication", func(t *testing.T) {
+		t.Skip("TODO")
+	})
 }
 
 func createTestServer(f http.HandlerFunc) *httptest.Server {
