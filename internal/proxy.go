@@ -12,7 +12,7 @@ import (
 )
 
 type Proxy struct {
-	origin      string // TODO: change to a Config
+	origin      *url.URL // TODO: change to a Config
 	cache       Cache
 	middlewares []Middleware
 	http.Handler
@@ -40,7 +40,11 @@ const (
 
 func NewProxy(origin string, cache Cache, options ...ProxyOptions) *Proxy {
 	proxy := new(Proxy)
-	proxy.origin = origin
+	o, err := url.Parse(origin)
+	if err != nil {
+		log.Fatalf("error parsing url, got %v", err)
+	}
+	proxy.origin = o
 	proxy.cache = cache
 
 	for _, option := range options {
@@ -60,12 +64,7 @@ func WithMiddlewares(middlewares ...Middleware) ProxyOptions {
 
 func (p *Proxy) callServer() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		origin, err := url.Parse(p.origin)
-		if err != nil {
-			log.Fatalf("error parsing url, got %v", err)
-		}
-
-		err = p.updateRequest(r, origin, w)
+		err := p.updateRequest(r, p.origin, w)
 		if err != nil {
 			log.Printf("error updating request, got %v", err)
 		}
@@ -91,17 +90,7 @@ func (p *Proxy) callServer() http.HandlerFunc {
 		w.Header().Set("X-Trailer", strings.Join(trailerKeys, ","))
 
 		// for streaming connections/data
-		done := make(chan bool)
-		go func() {
-			for {
-				select {
-				case <-time.Tick(1 * time.Millisecond):
-					w.(http.Flusher).Flush()
-				case <-done:
-					return
-				}
-			}
-		}()
+		done := p.flush(w)
 
 		w.WriteHeader(resp.StatusCode)
 		io.Copy(w, resp.Body)
@@ -110,6 +99,21 @@ func (p *Proxy) callServer() http.HandlerFunc {
 
 		close(done)
 	}
+}
+
+func (*Proxy) flush(w http.ResponseWriter) chan bool {
+	done := make(chan bool)
+	go func() {
+		for {
+			select {
+			case <-time.Tick(1 * time.Millisecond):
+				w.(http.Flusher).Flush()
+			case <-done:
+				return
+			}
+		}
+	}()
+	return done
 }
 
 func (p *Proxy) updateRequest(r *http.Request, origin *url.URL, w http.ResponseWriter) error {
