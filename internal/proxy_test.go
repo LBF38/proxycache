@@ -116,6 +116,25 @@ func TestProxy(t *testing.T) {
 
 		assert.Equal(t, http.StatusInternalServerError, resp.Result().StatusCode)
 	})
+
+	t.Run("trailer", func(t *testing.T) {
+		server := createTestServer(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Trailer", "X-Trailer,X-random")
+			w.WriteHeader(http.StatusOK)
+			fmt.Fprint(w, "body content")
+			w.Header().Set("X-Trailer", "Value")
+			w.Header().Set("X-random", "more things")
+		})
+		defer server.Close()
+		proxy := &Proxy{server.URL}
+		req := httptest.NewRequest(http.MethodGet, server.URL, nil)
+		response := httptest.NewRecorder()
+
+		proxy.ServeHTTP(response, req)
+
+		assert.Equal(t, "Value", response.Header().Get("X-Trailer"))
+		assert.Equal(t, "more things", response.Header().Get("X-random"))
+	})
 }
 
 func createTestServer(f http.HandlerFunc) *httptest.Server {

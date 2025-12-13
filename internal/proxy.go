@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 )
 
@@ -59,6 +60,12 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	var trailerKeys []string
+	for key := range resp.Trailer {
+		trailerKeys = append(trailerKeys, key)
+	}
+	w.Header().Set("X-Trailer", strings.Join(trailerKeys, ","))
+
 	// for streaming connections/data
 	done := make(chan bool)
 	go func() {
@@ -74,5 +81,12 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(resp.StatusCode)
 	io.Copy(w, resp.Body)
+
+	for key, values := range resp.Trailer {
+		for _, value := range values {
+			w.Header().Set(key, value)
+		}
+	}
+
 	close(done)
 }
