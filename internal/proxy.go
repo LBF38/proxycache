@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"fmt"
 	"io"
 	"log"
 	"net"
@@ -28,27 +29,9 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		log.Fatalf("error parsing url, got %v", err)
 	}
 
-	r.Header.Set(HeaderForwardedHost, r.Host)
-	r.Header.Set(HeaderForwardedPort, r.URL.Port())
-	r.Header.Set(HeaderForwardedProto, r.Proto)
-	r.Header.Set(HeaderForwardedServer, "ProxyCache") // WIP
-
-	r.Host = origin.Host
-	r.URL.Host = origin.Host
-	r.URL.Scheme = origin.Scheme
-	r.RequestURI = ""
-	if r.RemoteAddr != "" {
-		h, _, err := net.SplitHostPort(r.RemoteAddr)
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			log.Printf("error remote addr %v", err)
-			return
-		}
-		r.Header.Set("X-Forwarded-For", h)
-		r.Header.Set("X-Real-Ip", h)
-	}
-	if r.UserAgent() == "" {
-		r.Header.Set("User-Agent", "")
+	err = p.updateRequest(r, origin, w)
+	if err != nil {
+		log.Printf("error updating request, got %v", err)
 	}
 
 	_, _ = p.cache.Get("")
@@ -90,6 +73,31 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	copyHeaders(w.Header(), resp.Trailer)
 
 	close(done)
+}
+
+func (p *Proxy) updateRequest(r *http.Request, origin *url.URL, w http.ResponseWriter) error {
+	r.Header.Set(HeaderForwardedHost, r.Host)
+	r.Header.Set(HeaderForwardedPort, r.URL.Port())
+	r.Header.Set(HeaderForwardedProto, r.Proto)
+	r.Header.Set(HeaderForwardedServer, "ProxyCache") // WIP
+
+	r.Host = origin.Host
+	r.URL.Host = origin.Host
+	r.URL.Scheme = origin.Scheme
+	r.RequestURI = ""
+	if r.RemoteAddr != "" {
+		h, _, err := net.SplitHostPort(r.RemoteAddr)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return fmt.Errorf("error reading address: %w", err)
+		}
+		r.Header.Set("X-Forwarded-For", h)
+		r.Header.Set("X-Real-Ip", h)
+	}
+	if r.UserAgent() == "" {
+		r.Header.Set("User-Agent", "")
+	}
+	return nil
 }
 
 func copyHeaders(dst, src http.Header) {
