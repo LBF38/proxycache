@@ -135,6 +135,31 @@ func TestProxy(t *testing.T) {
 		assert.Equal(t, "Value", response.Header().Get("X-Trailer"))
 		assert.Equal(t, "more things", response.Header().Get("X-random"))
 	})
+
+	t.Run("User-Agent", func(t *testing.T) {
+		server := createTestServer(func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, "tester", r.Header.Get("User-Agent"))
+		})
+		defer server.Close()
+		proxy := &Proxy{server.URL}
+		req := httptest.NewRequest(http.MethodGet, server.URL, nil)
+		response := httptest.NewRecorder()
+		req.Header.Set("user-agent", "tester")
+
+		proxy.ServeHTTP(response, req)
+	})
+
+	t.Run("No User-Agent, no forwarding", func(t *testing.T) {
+		server := createTestServer(func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, "", r.Header.Get("User-Agent"))
+		})
+		defer server.Close()
+		proxy := &Proxy{server.URL}
+		req := httptest.NewRequest(http.MethodGet, server.URL, nil)
+		response := httptest.NewRecorder()
+
+		proxy.ServeHTTP(response, req)
+	})
 }
 
 func createTestServer(f http.HandlerFunc) *httptest.Server {

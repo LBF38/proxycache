@@ -46,6 +46,9 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		r.Header.Set("X-Forwarded-For", h)
 		r.Header.Set("X-Real-Ip", h)
 	}
+	if r.UserAgent() == "" {
+		r.Header.Set("User-Agent", "")
+	}
 
 	resp, err := http.DefaultClient.Do(r)
 	if err != nil {
