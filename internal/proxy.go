@@ -11,7 +11,8 @@ import (
 )
 
 type Proxy struct {
-	OriginServer string
+	OriginServer string // TODO: change to a Config
+	cache        Cache
 }
 
 const (
@@ -50,6 +51,8 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		r.Header.Set("User-Agent", "")
 	}
 
+	_, _ = p.cache.Get("")
+
 	resp, err := http.DefaultClient.Do(r)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -62,6 +65,9 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set(key, value)
 		}
 	}
+
+	p.cache.Set("", []byte(""))
+	w.Header().Set("X-Cache-Status", "MISS")
 
 	var trailerKeys []string
 	for key := range resp.Trailer {
