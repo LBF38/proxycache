@@ -60,11 +60,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	for key, values := range resp.Header {
-		for _, value := range values {
-			w.Header().Set(key, value)
-		}
-	}
+	copyHeaders(w.Header(), resp.Header)
 
 	p.cache.Set("", []byte(""))
 	w.Header().Set("X-Cache-Status", "MISS")
@@ -91,11 +87,15 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(resp.StatusCode)
 	io.Copy(w, resp.Body)
 
-	for key, values := range resp.Trailer {
-		for _, value := range values {
-			w.Header().Set(key, value)
-		}
-	}
+	copyHeaders(w.Header(), resp.Trailer)
 
 	close(done)
+}
+
+func copyHeaders(dst, src http.Header) {
+	for key, values := range src {
+		for _, value := range values {
+			dst.Set(key, value)
+		}
+	}
 }
