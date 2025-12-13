@@ -31,7 +31,7 @@ func TestCache(t *testing.T) {
 		})
 		defer server.Close()
 		cache := &StubCache{}
-		proxy := &Proxy{server.URL, cache}
+		proxy := NewProxy(server.URL, cache)
 		request := httptest.NewRequest(http.MethodGet, server.URL, nil)
 		response := httptest.NewRecorder()
 

@@ -11,7 +11,7 @@ func main() {
 	log.Println("WIP")
 
 	origin := "http://127.0.0.1:8000"
-	proxy := &internal.Proxy{OriginServer: origin}
+	proxy := internal.NewProxy(origin, nil)
 
 	log.Println("Listening on port 5000")
 	if err := http.ListenAndServe(":5000", proxy); err != nil {

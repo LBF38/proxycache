@@ -12,8 +12,23 @@ import (
 )
 
 type Proxy struct {
-	OriginServer string // TODO: change to a Config
-	cache        Cache
+	origin      string // TODO: change to a Config
+	cache       Cache
+	middlewares []Middleware
+	http.Handler
+}
+
+type ProxyOptions func(*Proxy)
+
+type Middleware func(http.Handler) http.Handler
+
+func chain(middlewares ...Middleware) Middleware {
+	return func(next http.Handler) http.Handler {
+		for i := len(middlewares) - 1; i >= 0; i-- {
+			next = middlewares[i](next)
+		}
+		return next
+	}
 }
 
 const (
@@ -23,56 +38,78 @@ const (
 	HeaderForwardedServer = "X-Forwarded-Server"
 )
 
-func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	origin, err := url.Parse(p.OriginServer)
-	if err != nil {
-		log.Fatalf("error parsing url, got %v", err)
+func NewProxy(origin string, cache Cache, options ...ProxyOptions) *Proxy {
+	proxy := new(Proxy)
+	proxy.origin = origin
+	proxy.cache = cache
+
+	for _, option := range options {
+		option(proxy)
 	}
 
-	err = p.updateRequest(r, origin, w)
-	if err != nil {
-		log.Printf("error updating request, got %v", err)
+	proxy.Handler = chain(proxy.middlewares...)(proxy.callServer())
+
+	return proxy
+}
+
+func WithMiddlewares(middlewares ...Middleware) ProxyOptions {
+	return func(p *Proxy) {
+		p.middlewares = append(p.middlewares, middlewares...)
 	}
+}
 
-	_, _ = p.cache.Get("")
-
-	resp, err := http.DefaultClient.Do(r)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		log.Printf("error requesting server: %v", err)
-		return
-	}
-
-	copyHeaders(w.Header(), resp.Header)
-
-	p.cache.Set("", []byte(""))
-	w.Header().Set("X-Cache-Status", "MISS")
-
-	var trailerKeys []string
-	for key := range resp.Trailer {
-		trailerKeys = append(trailerKeys, key)
-	}
-	w.Header().Set("X-Trailer", strings.Join(trailerKeys, ","))
-
-	// for streaming connections/data
-	done := make(chan bool)
-	go func() {
-		for {
-			select {
-			case <-time.Tick(1 * time.Millisecond):
-				w.(http.Flusher).Flush()
-			case <-done:
-				return
-			}
+func (p *Proxy) callServer() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		origin, err := url.Parse(p.origin)
+		if err != nil {
+			log.Fatalf("error parsing url, got %v", err)
 		}
-	}()
 
-	w.WriteHeader(resp.StatusCode)
-	io.Copy(w, resp.Body)
+		err = p.updateRequest(r, origin, w)
+		if err != nil {
+			log.Printf("error updating request, got %v", err)
+		}
 
-	copyHeaders(w.Header(), resp.Trailer)
+		_, _ = p.cache.Get("")
 
-	close(done)
+		resp, err := http.DefaultClient.Do(r)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			log.Printf("error requesting server: %v", err)
+			return
+		}
+
+		copyHeaders(w.Header(), resp.Header)
+
+		p.cache.Set("", []byte(""))
+		w.Header().Set("X-Cache-Status", "MISS")
+
+		var trailerKeys []string
+		for key := range resp.Trailer {
+			trailerKeys = append(trailerKeys, key)
+		}
+		w.Header().Set("X-Trailer", strings.Join(trailerKeys, ","))
+
+		// for streaming connections/data
+		done := make(chan bool)
+		go func() {
+			for {
+				select {
+				case <-time.Tick(1 * time.Millisecond):
+					w.(http.Flusher).Flush()
+				case <-done:
+					return
+				}
+			}
+		}()
+
+		w.WriteHeader(resp.StatusCode)
+		io.Copy(w, resp.Body)
+
+		copyHeaders(w.Header(), resp.Trailer)
+
+		close(done)
+	}
 }
 
 func (p *Proxy) updateRequest(r *http.Request, origin *url.URL, w http.ResponseWriter) error {
