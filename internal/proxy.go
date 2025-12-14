@@ -13,7 +13,6 @@ import (
 
 type Proxy struct {
 	origin      *url.URL // TODO: change to a Config
-	cache       Cache
 	middlewares []Middleware
 	http.Handler
 }

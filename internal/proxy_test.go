@@ -87,7 +87,7 @@ func TestProxy(t *testing.T) {
 			}
 			fmt.Fprintf(w, "some content\n")
 			flusher.Flush()
-			time.Sleep(time.Millisecond) // Not really great for test...
+			time.Sleep(5 * time.Millisecond) // Not really great for test...
 			fmt.Fprintf(w, "more content\n")
 			flusher.Flush()
 		})

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type StubCache struct {
@@ -49,22 +50,23 @@ func TestCache(t *testing.T) {
 		proxy := NewProxy(server.URL, WithMiddlewares(cacheMiddleware))
 		request := httptest.NewRequest(http.MethodGet, server.URL, nil)
 		response := httptest.NewRecorder()
-		// expected := &CacheEntity{
-		// 	StatusCode: 200,
-		// 	Body:       []byte("first response"),
-		// }
+		expected := &CacheEntity{
+			StatusCode: 200,
+			Body:       []byte("first response"),
+		}
 
 		proxy.ServeHTTP(response, request)
 
 		assert.Equal(t, "MISS", response.Header().Get("X-Cache-Status"))
-		etag := getEtag(t, response)
-		assert.Equal(t, http.MethodGet+":"+request.URL.String(), etag)
+		decodedETag := getDecodedEtag(t, response)
+		assert.Equal(t, http.MethodGet+":"+request.URL.String(), decodedETag)
 		assert.Equal(t, 1, cache.getCalls)
 		assert.Equal(t, 1, cache.setCalls)
-		// assert.NotNil(t, cache.store[etag]) // TODO, WIP
-		// assert.Equal(t, expected.StatusCode, cache.store[etag].StatusCode)
-		// assert.Equal(t, expected.Header, response.Header()) // TODO
-		// assert.Equal(t, string(expected.Body), string(cache.store[etag].Body))
+		cached := cache.store[response.Header().Get("ETag")]
+		require.NotNil(t, cached) // TODO, WIP
+		assert.Equal(t, expected.StatusCode, cached.StatusCode)
+		assert.Equal(t, string(expected.Body), string(cached.Body))
+		assert.NotEmpty(t, cached.Header) // TODO
 	})
 
 	t.Run("return the cached response", func(t *testing.T) {
@@ -94,7 +96,7 @@ func TestCache(t *testing.T) {
 	})
 }
 
-func getEtag(t testing.TB, response *httptest.ResponseRecorder) string {
+func getDecodedEtag(t testing.TB, response *httptest.ResponseRecorder) string {
 	t.Helper()
 	etagBytes, err := base64.StdEncoding.DecodeString(response.Header().Get("ETag"))
 	if err != nil {

@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"bytes"
 	"encoding/base64"
 	"net/http"
 	"time"
@@ -31,9 +32,15 @@ func CacheMiddleware(cache Cache) Middleware {
 				return
 			}
 
-			next.ServeHTTP(w, r)
+			rec := &responseRecorder{ResponseWriter: w, body: bytes.NewBuffer(nil)}
+			next.ServeHTTP(rec, r)
 
-			cache.Set(etag, nil)
+			entity := &CacheEntity{
+				StatusCode: rec.statusCode,
+				Header:     rec.Header(),
+				Body:       rec.body.Bytes(),
+			}
+			cache.Set(etag, entity)
 			w.Header().Set("X-Cache-Status", "MISS")
 		})
 	}
@@ -43,4 +50,20 @@ func setEtagHeader(w http.ResponseWriter, r *http.Request) string {
 	etag := base64.StdEncoding.EncodeToString([]byte(r.Method + ":" + r.URL.String()))
 	w.Header().Set("Etag", etag)
 	return etag
+}
+
+type responseRecorder struct {
+	http.ResponseWriter
+	statusCode int
+	body       *bytes.Buffer
+}
+
+func (r *responseRecorder) WriteHeader(statusCode int) {
+	r.statusCode = statusCode
+	r.ResponseWriter.WriteHeader(statusCode)
+}
+
+func (r *responseRecorder) Write(b []byte) (int, error) {
+	r.body.Write(b)
+	return r.ResponseWriter.Write(b)
 }
