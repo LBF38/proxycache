@@ -185,7 +185,7 @@ func TestNoCache(t *testing.T) {
 			proxy := NewProxy(server.URL, WithMiddlewares(CacheMiddleware(cache)))
 			response := httptest.NewRecorder()
 			request := httptest.NewRequest(tt.method, server.URL, tt.body)
-			copyHeaders(request.Header, tt.requestHeaders)
+			addHeaders(request.Header, tt.requestHeaders)
 
 			proxy.ServeHTTP(response, request)
 

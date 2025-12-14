@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"net/http"
+	"slices"
 	"time"
 )
 
@@ -22,34 +23,54 @@ type CacheEntity struct {
 func CacheMiddleware(cache Cache) Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			etag := setEtagHeader(w, r)
-			cached, _ := cache.Get(etag)
-			if cached != nil {
-				w.Header().Set("X-Cache-Status", "HIT")
-				w.WriteHeader(cached.StatusCode)
-				copyHeaders(w.Header(), cached.Header)
-				w.Write(cached.Body)
-				return
+			etag := getETag(r)
+			ok := bypassCacheFromRequest(w, r)
+			if !ok {
+				setEtagHeader(w, etag)
+				cached, _ := cache.Get(etag)
+				if cached != nil {
+					w.Header().Set("X-Cache-Status", "HIT")
+					w.WriteHeader(cached.StatusCode)
+					copyHeaders(w.Header(), cached.Header)
+					w.Write(cached.Body)
+					return
+				}
 			}
 
 			rec := &responseRecorder{ResponseWriter: w, body: bytes.NewBuffer(nil)}
 			next.ServeHTTP(rec, r)
 
-			entity := &CacheEntity{
-				StatusCode: rec.statusCode,
-				Header:     rec.Header(),
-				Body:       rec.body.Bytes(),
+			if !ok {
+				entity := &CacheEntity{
+					StatusCode: rec.statusCode,
+					Header:     rec.Header(),
+					Body:       rec.body.Bytes(),
+				}
+				cache.Set(etag, entity)
+				w.Header().Set("X-Cache-Status", "MISS")
 			}
-			cache.Set(etag, entity)
-			w.Header().Set("X-Cache-Status", "MISS")
 		})
 	}
 }
 
-func setEtagHeader(w http.ResponseWriter, r *http.Request) string {
-	etag := base64.StdEncoding.EncodeToString([]byte(r.Method + ":" + r.URL.String()))
+func bypassCacheFromRequest(w http.ResponseWriter, r *http.Request) bool {
+	rules := []string{"no-store", "no-cache", "private"}
+	ok := false
+	for _, rule := range rules {
+		ok = ok || slices.Contains(r.Header.Values("Cache-Control"), rule)
+	}
+	if ok {
+		w.Header().Set("X-Cache-Status", "BYPASS")
+	}
+	return ok
+}
+
+func setEtagHeader(w http.ResponseWriter, etag string) {
 	w.Header().Set("Etag", etag)
-	return etag
+}
+
+func getETag(r *http.Request) string {
+	return base64.StdEncoding.EncodeToString([]byte(r.Method + ":" + r.URL.String()))
 }
 
 type responseRecorder struct {

@@ -141,3 +141,11 @@ func copyHeaders(dst, src http.Header) {
 		}
 	}
 }
+
+func addHeaders(dst, src http.Header) {
+	for key, values := range src {
+		for _, value := range values {
+			dst.Add(key, value)
+		}
+	}
+}
