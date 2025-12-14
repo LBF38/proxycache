@@ -6,8 +6,8 @@ import (
 )
 
 type Cache interface {
-	Get(key string) ([]byte, error)
-	Set(key string, value []byte) error
+	Get(key string) (CacheEntity, error)
+	Set(key string, value CacheEntity) error
 }
 
 type CacheEntity struct {

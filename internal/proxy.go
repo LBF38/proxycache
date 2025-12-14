@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"encoding/base64"
 	"fmt"
 	"io"
 	"log"
@@ -69,7 +70,18 @@ func (p *Proxy) callServer() http.HandlerFunc {
 			log.Printf("error updating request, got %v", err)
 		}
 
-		_, _ = p.cache.Get("")
+		// etag := p.setEtagHeader(w, r)
+		// cached, err := p.cache.Get(etag)
+		// if err != nil {
+		// 	w.WriteHeader(http.StatusInternalServerError)
+		// 	log.Printf("error from cache: %v", err)
+		// } else {
+		// 	copyHeaders(w.Header(), cached.Value.Header)
+		// 	w.Header().Set("X-Cache-Status", "HIT")
+		// 	w.WriteHeader(cached.Value.StatusCode)
+		// 	io.Copy(w, cached.Value.Body)
+		// 	return
+		// }
 
 		resp, err := http.DefaultClient.Do(r)
 		if err != nil {
@@ -80,8 +92,8 @@ func (p *Proxy) callServer() http.HandlerFunc {
 
 		copyHeaders(w.Header(), resp.Header)
 
-		p.cache.Set("", []byte(""))
-		w.Header().Set("X-Cache-Status", "MISS")
+		// p.cache.Set(etag, CacheEntity{*resp, time.Minute})
+		// w.Header().Set("X-Cache-Status", "MISS")
 
 		var trailerKeys []string
 		for key := range resp.Trailer {
@@ -99,6 +111,12 @@ func (p *Proxy) callServer() http.HandlerFunc {
 
 		close(done)
 	}
+}
+
+func (*Proxy) setEtagHeader(w http.ResponseWriter, r *http.Request) string {
+	etag := base64.StdEncoding.EncodeToString([]byte(r.Method + ":" + r.URL.String()))
+	w.Header().Set("Etag", etag)
+	return etag
 }
 
 func (*Proxy) flush(w http.ResponseWriter) chan bool {
