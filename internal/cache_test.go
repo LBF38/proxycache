@@ -7,31 +7,32 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
 
 type StubCache struct {
-	store    map[string]CacheEntity
+	store    map[string]*CacheEntity
 	getCalls int
 	getError error
 	setCalls int
 	setError error
 }
 
-func newStubCache(store map[string]CacheEntity, get, set error) *StubCache {
+func newStubCache(store map[string]*CacheEntity, get, set error) *StubCache {
 	if store == nil {
-		store = map[string]CacheEntity{}
+		store = map[string]*CacheEntity{}
 	}
 	return &StubCache{store, 0, get, 0, set}
 }
 
-func (c *StubCache) Get(key string) (CacheEntity, error) {
+func (c *StubCache) Get(key string) (*CacheEntity, error) {
 	c.getCalls++
 	return c.store[key], c.getError
 }
 
-func (c *StubCache) Set(key string, value CacheEntity) error {
+func (c *StubCache) Set(key string, value *CacheEntity) error {
 	c.setCalls++
 	c.store[key] = value
 	return c.setError
@@ -39,15 +40,19 @@ func (c *StubCache) Set(key string, value CacheEntity) error {
 
 func TestCache(t *testing.T) {
 	t.Run("GET request cached on first call", func(t *testing.T) {
-		t.Skip("WIP")
 		server := createTestServer(func(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprintf(w, "first response")
 		})
 		defer server.Close()
 		cache := newStubCache(nil, errors.New("not found"), nil)
-		proxy := NewProxy(server.URL, cache)
+		cacheMiddleware := CacheMiddleware(cache)
+		proxy := NewProxy(server.URL, WithMiddlewares(cacheMiddleware))
 		request := httptest.NewRequest(http.MethodGet, server.URL, nil)
 		response := httptest.NewRecorder()
+		// expected := &CacheEntity{
+		// 	StatusCode: 200,
+		// 	Body:       []byte("first response"),
+		// }
 
 		proxy.ServeHTTP(response, request)
 
@@ -56,35 +61,36 @@ func TestCache(t *testing.T) {
 		assert.Equal(t, http.MethodGet+":"+request.URL.String(), etag)
 		assert.Equal(t, 1, cache.getCalls)
 		assert.Equal(t, 1, cache.setCalls)
+		// assert.NotNil(t, cache.store[etag]) // TODO, WIP
+		// assert.Equal(t, expected.StatusCode, cache.store[etag].StatusCode)
+		// assert.Equal(t, expected.Header, response.Header()) // TODO
+		// assert.Equal(t, string(expected.Body), string(cache.store[etag].Body))
 	})
 
 	t.Run("return the cached response", func(t *testing.T) {
-		t.Skip("WIP")
 		server := createTestServer(func(w http.ResponseWriter, r *http.Request) {
-			fmt.Fprintf(w, "cached response")
+			fmt.Fprintf(w, "real response")
 		})
 		defer server.Close()
 		request := httptest.NewRequest(http.MethodGet, server.URL, nil)
 		response := httptest.NewRecorder()
-		resp, _ := server.Client().Do(request)
-		store := map[string]CacheEntity{
+		store := map[string]*CacheEntity{
 			buildEtag(t, request): {
-				Value:      *resp,
-				Expiration: 0,
+				StatusCode: 200,
+				Header:     http.Header{},
+				Body:       []byte("cached response"),
+				ExpiresAt:  time.Now().Add(time.Minute),
 			},
 		}
 		cache := newStubCache(store, nil, nil)
-		proxy := NewProxy(server.URL, cache)
-		// cached := httptest.NewRecorder()
+		proxy := NewProxy(server.URL, WithMiddlewares(CacheMiddleware(cache)))
 
 		proxy.ServeHTTP(response, request)
-		proxy.ServeHTTP(response, request)
-		// proxy.ServeHTTP(cached, request)
 
 		assert.Equal(t, "HIT", response.Header().Get("X-Cache-Status"))
 		assert.Equal(t, 1, cache.getCalls)
 		assert.Equal(t, 0, cache.setCalls)
-		// assert.Equal(t, "cached response", response.Body.String())
+		assert.Equal(t, "cached response", response.Body.String())
 	})
 }
 

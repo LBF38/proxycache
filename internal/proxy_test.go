@@ -12,8 +12,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-var cache StubCache
-
 func TestProxy(t *testing.T) {
 	t.Run("check status code, body & headers", func(t *testing.T) {
 		server := createTestServer(func(w http.ResponseWriter, r *http.Request) {
@@ -23,7 +21,7 @@ func TestProxy(t *testing.T) {
 			fmt.Fprintf(w, "some test")
 		})
 		defer server.Close()
-		proxy := NewProxy(server.URL, &cache)
+		proxy := NewProxy(server.URL)
 		req := httptest.NewRequest(http.MethodGet, server.URL, nil)
 		response := httptest.NewRecorder()
 
@@ -47,7 +45,7 @@ func TestProxy(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		proxy := NewProxy(server.URL, &cache)
+		proxy := NewProxy(server.URL)
 		req := httptest.NewRequest(http.MethodGet, server.URL, nil)
 		response := httptest.NewRecorder()
 
@@ -65,7 +63,7 @@ func TestProxy(t *testing.T) {
 			fmt.Fprintf(w, "body content")
 		})
 		defer server.Close()
-		proxy := NewProxy(server.URL, &cache)
+		proxy := NewProxy(server.URL)
 		req := httptest.NewRequest(http.MethodGet, server.URL, nil)
 		req.RemoteAddr = "10.0.0.1:45"
 		response := httptest.NewRecorder()
@@ -94,7 +92,7 @@ func TestProxy(t *testing.T) {
 			flusher.Flush()
 		})
 		defer server.Close()
-		proxy := NewProxy(server.URL, &cache)
+		proxy := NewProxy(server.URL)
 		req := httptest.NewRequest(http.MethodGet, server.URL, nil)
 		response := httptest.NewRecorder()
 
@@ -109,7 +107,7 @@ func TestProxy(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 		})
 		defer server.Close()
-		proxy := NewProxy(server.URL, &cache)
+		proxy := NewProxy(server.URL)
 		req := httptest.NewRequest(http.MethodGet, server.URL, nil)
 		resp := httptest.NewRecorder()
 
@@ -128,7 +126,7 @@ func TestProxy(t *testing.T) {
 			w.Header().Set("X-random", "more things")
 		})
 		defer server.Close()
-		proxy := NewProxy(server.URL, &cache)
+		proxy := NewProxy(server.URL)
 		req := httptest.NewRequest(http.MethodGet, server.URL, nil)
 		response := httptest.NewRecorder()
 
@@ -143,7 +141,7 @@ func TestProxy(t *testing.T) {
 			assert.Equal(t, "tester", r.Header.Get("User-Agent"))
 		})
 		defer server.Close()
-		proxy := NewProxy(server.URL, &cache)
+		proxy := NewProxy(server.URL)
 		req := httptest.NewRequest(http.MethodGet, server.URL, nil)
 		response := httptest.NewRecorder()
 		req.Header.Set("user-agent", "tester")
@@ -156,7 +154,7 @@ func TestProxy(t *testing.T) {
 			assert.Equal(t, "", r.Header.Get("User-Agent"))
 		})
 		defer server.Close()
-		proxy := NewProxy(server.URL, &cache)
+		proxy := NewProxy(server.URL)
 		req := httptest.NewRequest(http.MethodGet, server.URL, nil)
 		response := httptest.NewRecorder()
 
@@ -175,7 +173,7 @@ func TestProxy(t *testing.T) {
 				next.ServeHTTP(w, r)
 			})
 		}
-		proxy := NewProxy(server.URL, &cache, WithMiddlewares(middleware))
+		proxy := NewProxy(server.URL, WithMiddlewares(middleware))
 		response := httptest.NewRecorder()
 
 		proxy.ServeHTTP(response, httptest.NewRequest(http.MethodGet, server.URL, nil))
