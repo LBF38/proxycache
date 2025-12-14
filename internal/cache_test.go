@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -109,4 +110,96 @@ func getDecodedEtag(t testing.TB, response *httptest.ResponseRecorder) string {
 func buildEtag(t testing.TB, r *http.Request) string {
 	t.Helper()
 	return base64.StdEncoding.EncodeToString([]byte(r.Method + ":" + r.URL.String()))
+}
+
+func TestNoCache(t *testing.T) {
+	tests := []struct {
+		desc            string
+		method          string
+		requestHeaders  http.Header
+		responseHeaders http.Header
+		body            io.Reader
+		wantCached      bool
+	}{
+		{
+			desc:   "Cache-Control: no-cache",
+			method: http.MethodGet,
+			requestHeaders: http.Header{
+				"Cache-Control": {"no-cache"},
+			},
+		},
+		{
+			desc:   "Cache-Control: no-store",
+			method: http.MethodGet,
+			requestHeaders: http.Header{
+				"Cache-Control": {"no-store"},
+			},
+		},
+		{
+			desc:   "Cache-Control: private",
+			method: http.MethodGet,
+			requestHeaders: http.Header{
+				"Cache-Control": {"private"},
+			},
+		},
+		{
+			desc:   "Cache-Control: public",
+			method: http.MethodGet,
+			requestHeaders: http.Header{
+				"Cache-Control": {"public"},
+			},
+			wantCached: true,
+		},
+		{
+			desc:   "Cache-Control: max-ages",
+			method: http.MethodGet,
+			requestHeaders: http.Header{
+				"Cache-Control": {"max-age=86400"},
+			},
+			wantCached: true,
+		},
+		{
+			desc:   "Cache-Control: public,max-ages",
+			method: http.MethodGet,
+			requestHeaders: http.Header{
+				"Cache-Control": {"public", "max-age=86400"},
+			},
+			wantCached: true,
+		},
+		{
+			desc:   "Cache-Control: private,max-ages",
+			method: http.MethodGet,
+			requestHeaders: http.Header{
+				"Cache-Control": {"private", "max-age=86400"},
+			},
+			wantCached: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			server := createTestServer(func(w http.ResponseWriter, r *http.Request) {
+				addHeaders(w.Header(), tt.responseHeaders)
+			})
+			defer server.Close()
+			cache := newStubCache(map[string]*CacheEntity{}, nil, nil)
+			proxy := NewProxy(server.URL, WithMiddlewares(CacheMiddleware(cache)))
+			response := httptest.NewRecorder()
+			request := httptest.NewRequest(tt.method, server.URL, tt.body)
+			copyHeaders(request.Header, tt.requestHeaders)
+
+			proxy.ServeHTTP(response, request)
+
+			if tt.wantCached {
+				assert.Equal(t, 1, cache.getCalls)
+				assert.Equal(t, 1, cache.setCalls)
+				assert.NotEmpty(t, response.Header().Get("ETag"))
+				assert.Equal(t, "MISS", response.Header().Get("X-Cache-Status"))
+				return
+			}
+			assert.Equal(t, 0, cache.getCalls)
+			assert.Equal(t, 0, cache.setCalls)
+			assert.Empty(t, response.Header().Get("ETag"))
+			assert.Equal(t, "BYPASS", response.Header().Get("X-Cache-Status"))
+		})
+	}
 }
