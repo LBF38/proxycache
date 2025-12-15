@@ -21,7 +21,7 @@ func TestProxy(t *testing.T) {
 			fmt.Fprintf(w, "some test")
 		})
 		defer server.Close()
-		proxy := &Proxy{server.URL}
+		proxy := NewProxy(server.URL)
 		req := httptest.NewRequest(http.MethodGet, server.URL, nil)
 		response := httptest.NewRecorder()
 
@@ -45,7 +45,7 @@ func TestProxy(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		proxy := &Proxy{server.URL}
+		proxy := NewProxy(server.URL)
 		req := httptest.NewRequest(http.MethodGet, server.URL, nil)
 		response := httptest.NewRecorder()
 
@@ -63,7 +63,7 @@ func TestProxy(t *testing.T) {
 			fmt.Fprintf(w, "body content")
 		})
 		defer server.Close()
-		proxy := &Proxy{server.URL}
+		proxy := NewProxy(server.URL)
 		req := httptest.NewRequest(http.MethodGet, server.URL, nil)
 		req.RemoteAddr = "10.0.0.1:45"
 		response := httptest.NewRecorder()
@@ -87,12 +87,12 @@ func TestProxy(t *testing.T) {
 			}
 			fmt.Fprintf(w, "some content\n")
 			flusher.Flush()
-			time.Sleep(time.Millisecond) // Not really great for test...
+			time.Sleep(5 * time.Millisecond) // Not really great for test...
 			fmt.Fprintf(w, "more content\n")
 			flusher.Flush()
 		})
 		defer server.Close()
-		proxy := &Proxy{server.URL}
+		proxy := NewProxy(server.URL)
 		req := httptest.NewRequest(http.MethodGet, server.URL, nil)
 		response := httptest.NewRecorder()
 
@@ -107,7 +107,7 @@ func TestProxy(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 		})
 		defer server.Close()
-		proxy := &Proxy{server.URL}
+		proxy := NewProxy(server.URL)
 		req := httptest.NewRequest(http.MethodGet, server.URL, nil)
 		resp := httptest.NewRecorder()
 
@@ -126,7 +126,7 @@ func TestProxy(t *testing.T) {
 			w.Header().Set("X-random", "more things")
 		})
 		defer server.Close()
-		proxy := &Proxy{server.URL}
+		proxy := NewProxy(server.URL)
 		req := httptest.NewRequest(http.MethodGet, server.URL, nil)
 		response := httptest.NewRecorder()
 
@@ -136,12 +136,28 @@ func TestProxy(t *testing.T) {
 		assert.Equal(t, "more things", response.Header().Get("X-random"))
 	})
 
+	t.Run("no trailer by default", func(t *testing.T) {
+		server := createTestServer(func(w http.ResponseWriter, r *http.Request) {})
+		defer server.Close()
+		proxy := NewProxy(server.URL)
+		req := httptest.NewRequest(http.MethodGet, server.URL, nil)
+		response := httptest.NewRecorder()
+
+		proxy.ServeHTTP(response, req)
+
+		var keys []string
+		for key := range response.Header() {
+			keys = append(keys, key)
+		}
+		assert.NotContains(t, keys, "X-Trailer")
+	})
+
 	t.Run("User-Agent", func(t *testing.T) {
 		server := createTestServer(func(w http.ResponseWriter, r *http.Request) {
 			assert.Equal(t, "tester", r.Header.Get("User-Agent"))
 		})
 		defer server.Close()
-		proxy := &Proxy{server.URL}
+		proxy := NewProxy(server.URL)
 		req := httptest.NewRequest(http.MethodGet, server.URL, nil)
 		response := httptest.NewRecorder()
 		req.Header.Set("user-agent", "tester")
@@ -154,11 +170,32 @@ func TestProxy(t *testing.T) {
 			assert.Equal(t, "", r.Header.Get("User-Agent"))
 		})
 		defer server.Close()
-		proxy := &Proxy{server.URL}
+		proxy := NewProxy(server.URL)
 		req := httptest.NewRequest(http.MethodGet, server.URL, nil)
 		response := httptest.NewRecorder()
 
 		proxy.ServeHTTP(response, req)
+	})
+
+	t.Run("testing middleware", func(t *testing.T) {
+		server := createTestServer(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			fmt.Fprintf(w, "some random content")
+		})
+		defer server.Close()
+		middleware := func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusNotFound)
+				next.ServeHTTP(w, r)
+			})
+		}
+		proxy := NewProxy(server.URL, WithMiddlewares(middleware))
+		response := httptest.NewRecorder()
+
+		proxy.ServeHTTP(response, httptest.NewRequest(http.MethodGet, server.URL, nil))
+
+		assert.Equal(t, http.StatusNotFound, response.Code)
+		assert.Equal(t, "some random content", response.Body.String())
 	})
 
 	t.Run("HTTP/2", func(t *testing.T) {
