@@ -70,20 +70,20 @@ func bypassCacheFromRequest(w http.ResponseWriter, r *http.Request) bool {
 	return false
 }
 
-func bypassCacheFromResponse(rec *responseRecorder, r *http.Request) bool {
+func bypassCacheFromResponse(w http.ResponseWriter, r *http.Request) bool {
 	cacheControlRules := []string{"no-store", "no-cache", "private"} // bypass
 	methodRules := []string{http.MethodGet, http.MethodHead}         // allow
 	// codeRules := []int{200, 203, 204, 206, 300, 301, 308, 404, 405, 410, 414, 501} // allow - ref. RFC9110 15.1
 	for _, rule := range cacheControlRules {
 		// By default, Cache-Control empty = heuristic caching
-		if slices.Contains(rec.Header()["Cache-Control"], rule) {
-			setCacheStatus(rec, statusBYPASS)
+		if slices.Contains(w.Header()["Cache-Control"], rule) {
+			setCacheStatus(w, statusBYPASS)
 			return true
 		}
 	}
 
 	if !slices.Contains(methodRules, r.Method) {
-		setCacheStatus(rec, statusBYPASS)
+		setCacheStatus(w, statusBYPASS)
 		return true
 	}
 	return false
