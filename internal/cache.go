@@ -27,7 +27,7 @@ func CacheMiddleware(cache Cache) Middleware {
 			if !bypassCacheFromRequest(w, r) {
 				cached, _ := cache.Get(etag)
 				if cached != nil {
-					w.Header().Set("X-Cache-Status", "HIT")
+					setCacheStatus(w, statusHIT)
 					setEtagHeader(w, etag)
 					w.WriteHeader(cached.StatusCode)
 					setHeaders(w.Header(), cached.Header)
@@ -47,7 +47,7 @@ func CacheMiddleware(cache Cache) Middleware {
 				}
 				cache.Set(etag, entity)
 				setEtagHeader(w, etag)
-				w.Header().Set("X-Cache-Status", "MISS")
+				setCacheStatus(w, statusMISS)
 			}
 		})
 	}
@@ -74,9 +74,13 @@ func bypassCacheFromResponse(w http.ResponseWriter, r *http.Request) bool {
 	cacheControlRules := []string{"no-store", "no-cache", "private"} // bypass
 	methodRules := []string{http.MethodGet, http.MethodHead}         // allow
 	// codeRules := []int{200, 203, 204, 206, 300, 301, 308, 404, 405, 410, 414, 501} // allow - ref. RFC9110 15.1
+	if w.Header().Get("X-Cache-Status") == statusBYPASS.String() {
+		// was bypassed by request => wanted ?? doubt
+		return true
+	}
 	for _, rule := range cacheControlRules {
 		// By default, Cache-Control empty = heuristic caching
-		if slices.Contains(w.Header()["Cache-Control"], rule) {
+		if slices.Contains(w.Header().Values("Cache-Control"), rule) {
 			setCacheStatus(w, statusBYPASS)
 			return true
 		}

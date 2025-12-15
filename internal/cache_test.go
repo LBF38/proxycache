@@ -235,6 +235,14 @@ func TestNoCache(t *testing.T) {
 			method:     http.MethodDelete,
 			wantCached: false,
 		},
+		{
+			desc:   "Bypassed by request, no cache-control on response",
+			method: http.MethodGet, // this would allow the caching
+			requestHeaders: http.Header{
+				"Cache-Control": []string{"private", "no-cache"},
+			},
+			wantCached: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
