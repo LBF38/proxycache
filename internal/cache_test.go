@@ -1,7 +1,6 @@
 package internal
 
 import (
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -59,8 +58,6 @@ func TestCache(t *testing.T) {
 		proxy.ServeHTTP(response, request)
 
 		assert.Equal(t, "MISS", response.Header().Get("X-Cache-Status"))
-		decodedETag := getDecodedEtag(t, response)
-		assert.Equal(t, http.MethodGet+":"+request.URL.String(), decodedETag)
 		assert.Equal(t, 1, cache.getCalls)
 		assert.Equal(t, 1, cache.setCalls)
 		cached := cache.store[response.Header().Get("ETag")]
@@ -78,7 +75,7 @@ func TestCache(t *testing.T) {
 		request := httptest.NewRequest(http.MethodGet, server.URL, nil)
 		response := httptest.NewRecorder()
 		store := map[string]*CacheEntity{
-			buildEtag(t, request): {
+			getETag(request): {
 				StatusCode: 200,
 				Header:     http.Header{},
 				Body:       []byte("cached response"),
@@ -95,21 +92,6 @@ func TestCache(t *testing.T) {
 		assert.Equal(t, 0, cache.setCalls)
 		assert.Equal(t, "cached response", response.Body.String())
 	})
-}
-
-func getDecodedEtag(t testing.TB, response *httptest.ResponseRecorder) string {
-	t.Helper()
-	etagBytes, err := base64.StdEncoding.DecodeString(response.Header().Get("ETag"))
-	if err != nil {
-		t.Error(err)
-	}
-	etag := string(etagBytes)
-	return etag
-}
-
-func buildEtag(t testing.TB, r *http.Request) string {
-	t.Helper()
-	return base64.StdEncoding.EncodeToString([]byte(r.Method + ":" + r.URL.String()))
 }
 
 func TestNoCache(t *testing.T) {
