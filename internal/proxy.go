@@ -74,7 +74,7 @@ func (p *Proxy) callServer() http.HandlerFunc {
 			return
 		}
 
-		copyHeaders(w.Header(), resp.Header)
+		addHeaders(w.Header(), resp.Header)
 
 		var trailerKeys []string
 		for key := range resp.Trailer {
@@ -88,7 +88,7 @@ func (p *Proxy) callServer() http.HandlerFunc {
 		w.WriteHeader(resp.StatusCode)
 		io.Copy(w, resp.Body)
 
-		copyHeaders(w.Header(), resp.Trailer)
+		setHeaders(w.Header(), resp.Trailer)
 
 		close(done)
 	}
@@ -134,7 +134,7 @@ func (p *Proxy) updateRequest(r *http.Request, origin *url.URL, w http.ResponseW
 	return nil
 }
 
-func copyHeaders(dst, src http.Header) {
+func setHeaders(dst, src http.Header) {
 	for key, values := range src {
 		for _, value := range values {
 			dst.Set(key, value)

@@ -127,11 +127,17 @@ func TestNoCache(t *testing.T) {
 			requestHeaders: http.Header{
 				"Cache-Control": {"no-cache"},
 			},
+			responseHeaders: http.Header{
+				"Cache-Control": {"no-cache"},
+			},
 		},
 		{
 			desc:   "Cache-Control: no-store",
 			method: http.MethodGet,
 			requestHeaders: http.Header{
+				"Cache-Control": {"no-store"},
+			},
+			responseHeaders: http.Header{
 				"Cache-Control": {"no-store"},
 			},
 		},
@@ -141,11 +147,17 @@ func TestNoCache(t *testing.T) {
 			requestHeaders: http.Header{
 				"Cache-Control": {"private"},
 			},
+			responseHeaders: http.Header{
+				"Cache-Control": {"private"},
+			},
 		},
 		{
 			desc:   "Cache-Control: public",
 			method: http.MethodGet,
 			requestHeaders: http.Header{
+				"Cache-Control": {"public"},
+			},
+			responseHeaders: http.Header{
 				"Cache-Control": {"public"},
 			},
 			wantCached: true,
@@ -156,12 +168,18 @@ func TestNoCache(t *testing.T) {
 			requestHeaders: http.Header{
 				"Cache-Control": {"max-age=86400"},
 			},
+			responseHeaders: http.Header{
+				"Cache-Control": {"max-age=86400"},
+			},
 			wantCached: true,
 		},
 		{
 			desc:   "Cache-Control: public,max-ages",
 			method: http.MethodGet,
 			requestHeaders: http.Header{
+				"Cache-Control": {"public", "max-age=86400"},
+			},
+			responseHeaders: http.Header{
 				"Cache-Control": {"public", "max-age=86400"},
 			},
 			wantCached: true,
@@ -172,6 +190,49 @@ func TestNoCache(t *testing.T) {
 			requestHeaders: http.Header{
 				"Cache-Control": {"private", "max-age=86400"},
 			},
+			responseHeaders: http.Header{
+				"Cache-Control": {"private", "max-age=86400"},
+			},
+			wantCached: false,
+		},
+		{
+			desc:       "Cache for GET",
+			method:     http.MethodGet,
+			wantCached: true,
+		},
+		{
+			desc:       "Cache for HEAD",
+			method:     http.MethodHead,
+			wantCached: true,
+		},
+		{
+			desc:       "No cache for OPTIONS",
+			method:     http.MethodOptions,
+			wantCached: false,
+		},
+		{
+			desc:       "No cache for TRACE",
+			method:     http.MethodTrace,
+			wantCached: false,
+		},
+		{
+			desc:       "No cache for POST",
+			method:     http.MethodPost,
+			wantCached: false,
+		},
+		{
+			desc:       "No cache for PUT",
+			method:     http.MethodPut,
+			wantCached: false,
+		},
+		{
+			desc:       "No cache for PATCH",
+			method:     http.MethodPatch,
+			wantCached: false,
+		},
+		{
+			desc:       "No cache for DELETE",
+			method:     http.MethodDelete,
 			wantCached: false,
 		},
 	}
@@ -190,14 +251,14 @@ func TestNoCache(t *testing.T) {
 			proxy.ServeHTTP(response, request)
 
 			if tt.wantCached {
-				assert.Equal(t, 1, cache.getCalls)
-				assert.Equal(t, 1, cache.setCalls)
+				assert.Equal(t, 1, cache.getCalls, "cache get calls")
+				assert.Equal(t, 1, cache.setCalls, "cache set calls")
 				assert.NotEmpty(t, response.Header().Get("ETag"))
 				assert.Equal(t, "MISS", response.Header().Get("X-Cache-Status"))
 				return
 			}
-			assert.Equal(t, 0, cache.getCalls)
-			assert.Equal(t, 0, cache.setCalls)
+			assert.Equal(t, 0, cache.getCalls, "cache get calls")
+			assert.Equal(t, 0, cache.setCalls, "cache set calls")
 			assert.Empty(t, response.Header().Get("ETag"))
 			assert.Equal(t, "BYPASS", response.Header().Get("X-Cache-Status"))
 		})

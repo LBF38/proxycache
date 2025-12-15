@@ -24,14 +24,13 @@ func CacheMiddleware(cache Cache) Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			etag := getETag(r)
-			ok := bypassCacheFromRequest(w, r)
-			if !ok {
-				setEtagHeader(w, etag)
+			if !bypassCacheFromRequest(w, r) {
 				cached, _ := cache.Get(etag)
 				if cached != nil {
 					w.Header().Set("X-Cache-Status", "HIT")
+					setEtagHeader(w, etag)
 					w.WriteHeader(cached.StatusCode)
-					copyHeaders(w.Header(), cached.Header)
+					setHeaders(w.Header(), cached.Header)
 					w.Write(cached.Body)
 					return
 				}
@@ -40,13 +39,14 @@ func CacheMiddleware(cache Cache) Middleware {
 			rec := &responseRecorder{ResponseWriter: w, body: bytes.NewBuffer(nil)}
 			next.ServeHTTP(rec, r)
 
-			if !ok {
+			if !bypassCacheFromResponse(rec, r) {
 				entity := &CacheEntity{
 					StatusCode: rec.statusCode,
 					Header:     rec.Header(),
 					Body:       rec.body.Bytes(),
 				}
 				cache.Set(etag, entity)
+				setEtagHeader(w, etag)
 				w.Header().Set("X-Cache-Status", "MISS")
 			}
 		})
@@ -54,15 +54,55 @@ func CacheMiddleware(cache Cache) Middleware {
 }
 
 func bypassCacheFromRequest(w http.ResponseWriter, r *http.Request) bool {
-	rules := []string{"no-store", "no-cache", "private"}
-	ok := false
+	rules := []string{"no-store", "no-cache", "private"}     // bypass
+	methodRules := []string{http.MethodGet, http.MethodHead} // allow
 	for _, rule := range rules {
-		ok = ok || slices.Contains(r.Header.Values("Cache-Control"), rule)
+		if slices.Contains(r.Header.Values("Cache-Control"), rule) {
+			setCacheStatus(w, statusBYPASS)
+			return true
+		}
 	}
-	if ok {
-		w.Header().Set("X-Cache-Status", "BYPASS")
+
+	if !slices.Contains(methodRules, r.Method) {
+		setCacheStatus(w, statusBYPASS)
+		return true
 	}
-	return ok
+	return false
+}
+
+func bypassCacheFromResponse(rec *responseRecorder, r *http.Request) bool {
+	cacheControlRules := []string{"no-store", "no-cache", "private"} // bypass
+	methodRules := []string{http.MethodGet, http.MethodHead}         // allow
+	// codeRules := []int{200, 203, 204, 206, 300, 301, 308, 404, 405, 410, 414, 501} // allow - ref. RFC9110 15.1
+	for _, rule := range cacheControlRules {
+		// By default, Cache-Control empty = heuristic caching
+		if slices.Contains(rec.Header()["Cache-Control"], rule) {
+			setCacheStatus(rec, statusBYPASS)
+			return true
+		}
+	}
+
+	if !slices.Contains(methodRules, r.Method) {
+		setCacheStatus(rec, statusBYPASS)
+		return true
+	}
+	return false
+}
+
+type cacheStatus string
+
+func (c cacheStatus) String() string {
+	return string(c)
+}
+
+const (
+	statusBYPASS cacheStatus = "BYPASS"
+	statusHIT    cacheStatus = "HIT"
+	statusMISS   cacheStatus = "MISS"
+)
+
+func setCacheStatus(w http.ResponseWriter, status cacheStatus) {
+	w.Header().Set("X-Cache-Status", status.String())
 }
 
 func setEtagHeader(w http.ResponseWriter, etag string) {
