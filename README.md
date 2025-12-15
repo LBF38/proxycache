@@ -11,15 +11,41 @@ Here are the main goals of the project. It may evolve across the project's lifet
 ### Minimal
 
 - HTTP reverse proxy
+  - has minimal support for the following features:
+    - all HTTP methods
+    - forwarded headers (`X-Forwarded-*`)
+    - streaming data
+    - trailer headers
+    - middlewares (custom or predefined, to extend the proxy behaviour)
+  - enhancements:
+    - support for more protocols (websocket, tcp, udp, HTTP/2, HTTP/3)
+    - enhance the routing engine
+    - entrypoints/middlewares/servers architecture
 - Caching
+  - current features:
+    - bypass rules (partially supported, see tests + RFC for more) from requests or response and `Cache-Control` directives
+    - cache response from method and status code (heuristical caching)
+    - adapter pattern to add any cache implementation in the proxy (in-memory, redis, ...)
+    - ETag (partially supported)
+  - enhancements:
+    - ETag (full support)
+    - `Last-Modified` / `Expires`
+    - `If-None-Match` / `If-Match`
+    - Fresh/Stale using `Age` or `max-age`
+    - Validation mechanism
 
 ### Enhancements
 
 - Static configuration
+  - => need to refactor the `Proxy` struct
 - CLI
 - Load balancing
+  - would have to create a proper router between endpoints and servers
+- Authentication
 - Rate limit
 - Observability
+
+These could be implemented using middlewares.
 
 ## Inspirations/Ressources
 
