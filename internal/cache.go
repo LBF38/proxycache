@@ -70,24 +70,30 @@ func bypassCacheFromRequest(w http.ResponseWriter, r *http.Request) bool {
 	return false
 }
 
-func bypassCacheFromResponse(w http.ResponseWriter, r *http.Request) bool {
-	cacheControlRules := []string{"no-store", "no-cache", "private"} // bypass
-	methodRules := []string{http.MethodGet, http.MethodHead}         // allow
-	// codeRules := []int{200, 203, 204, 206, 300, 301, 308, 404, 405, 410, 414, 501} // allow - ref. RFC9110 15.1
-	if w.Header().Get("X-Cache-Status") == statusBYPASS.String() {
+func bypassCacheFromResponse(rec *responseRecorder, r *http.Request) bool {
+	cacheControlRules := []string{"no-store", "no-cache", "private"}               // bypass
+	methodRules := []string{http.MethodGet, http.MethodHead}                       // allow
+	codeRules := []int{200, 203, 204, 206, 300, 301, 308, 404, 405, 410, 414, 501} // allow - ref. RFC9110 15.1
+	if rec.Header().Get("X-Cache-Status") == statusBYPASS.String() {
 		// was bypassed by request => wanted ?? doubt
 		return true
 	}
 	for _, rule := range cacheControlRules {
 		// By default, Cache-Control empty = heuristic caching
-		if slices.Contains(w.Header().Values("Cache-Control"), rule) {
-			setCacheStatus(w, statusBYPASS)
+		if slices.Contains(rec.Header().Values("Cache-Control"), rule) {
+			setCacheStatus(rec, statusBYPASS)
 			return true
 		}
 	}
 
 	if !slices.Contains(methodRules, r.Method) {
-		setCacheStatus(w, statusBYPASS)
+		setCacheStatus(rec, statusBYPASS)
+		return true
+	}
+
+	if !slices.Contains(codeRules, rec.statusCode) {
+		// TODO: add more tests for this
+		setCacheStatus(rec, statusBYPASS)
 		return true
 	}
 	return false
