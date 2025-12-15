@@ -3,6 +3,7 @@ package internal
 import (
 	"bytes"
 	"encoding/base64"
+	"log"
 	"net/http"
 	"slices"
 	"time"
@@ -112,6 +113,7 @@ const (
 )
 
 func setCacheStatus(w http.ResponseWriter, status cacheStatus) {
+	log.Printf("cache status: %v", status)
 	w.Header().Set("X-Cache-Status", status.String())
 }
 
@@ -137,4 +139,8 @@ func (r *responseRecorder) WriteHeader(statusCode int) {
 func (r *responseRecorder) Write(b []byte) (int, error) {
 	r.body.Write(b)
 	return r.ResponseWriter.Write(b)
+}
+
+func (r *responseRecorder) Flush() {
+	r.ResponseWriter.(http.Flusher).Flush()
 }

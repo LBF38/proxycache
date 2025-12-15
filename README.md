@@ -39,6 +39,8 @@ Here are the main goals of the project. It may evolve across the project's lifet
 - Static configuration
   - => need to refactor the `Proxy` struct
 - CLI
+  - minimal version for now.
+  - can be enhanced with config management + other flags for configuring the app
 - Load balancing
   - would have to create a proper router between endpoints and servers
 - Authentication

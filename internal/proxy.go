@@ -67,6 +67,7 @@ func (p *Proxy) callServer() http.HandlerFunc {
 			log.Printf("error updating request, got %v", err)
 		}
 
+		log.Printf("request: %s %s %s", r.Method, r.URL.String(), r.Proto)
 		resp, err := http.DefaultClient.Do(r)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
