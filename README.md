@@ -4,6 +4,10 @@ A simple HTTP Reverse Proxy with caching.
 
 This is a small challenge for building a reverse proxy from scratch in Go.
 
+> [!WARNING]
+> This work is far from being perfect.
+> It works but might not be fully compatible to HTTP standards on caching and other details.
+
 ## Goals
 
 Here are the main goals of the project. It may evolve across the project's lifetime.
