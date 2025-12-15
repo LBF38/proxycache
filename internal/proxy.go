@@ -80,7 +80,9 @@ func (p *Proxy) callServer() http.HandlerFunc {
 		for key := range resp.Trailer {
 			trailerKeys = append(trailerKeys, key)
 		}
-		w.Header().Set("X-Trailer", strings.Join(trailerKeys, ","))
+		if len(trailerKeys) > 0 {
+			w.Header().Set("X-Trailer", strings.Join(trailerKeys, ","))
+		}
 
 		// for streaming connections/data
 		done := p.flush(w)
@@ -88,7 +90,9 @@ func (p *Proxy) callServer() http.HandlerFunc {
 		w.WriteHeader(resp.StatusCode)
 		io.Copy(w, resp.Body)
 
-		setHeaders(w.Header(), resp.Trailer)
+		if len(trailerKeys) > 0 {
+			setHeaders(w.Header(), resp.Trailer)
+		}
 
 		close(done)
 	}

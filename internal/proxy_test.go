@@ -136,6 +136,22 @@ func TestProxy(t *testing.T) {
 		assert.Equal(t, "more things", response.Header().Get("X-random"))
 	})
 
+	t.Run("no trailer by default", func(t *testing.T) {
+		server := createTestServer(func(w http.ResponseWriter, r *http.Request) {})
+		defer server.Close()
+		proxy := NewProxy(server.URL)
+		req := httptest.NewRequest(http.MethodGet, server.URL, nil)
+		response := httptest.NewRecorder()
+
+		proxy.ServeHTTP(response, req)
+
+		var keys []string
+		for key := range response.Header() {
+			keys = append(keys, key)
+		}
+		assert.NotContains(t, keys, "X-Trailer")
+	})
+
 	t.Run("User-Agent", func(t *testing.T) {
 		server := createTestServer(func(w http.ResponseWriter, r *http.Request) {
 			assert.Equal(t, "tester", r.Header.Get("User-Agent"))
