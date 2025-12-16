@@ -15,7 +15,7 @@ func NewInMemoryCache(size int) *InMemoryCache {
 
 func (c *InMemoryCache) Get(key string) (*CacheEntity, error) {
 	c.mu.RLock()
-	defer c.mu.RLocker().Unlock()
+	defer c.mu.RUnlock()
 	val := c.store[key]
 	return val, nil
 }
